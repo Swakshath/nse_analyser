@@ -279,23 +279,23 @@ def style_results_table(df: pd.DataFrame):
     styler = df.style
     for scol in ["Support 1 Strength", "Support 2 Strength", "Support 3 Strength"]:
         if scol in df.columns:
-            styler = styler.applymap(color_support_strength, subset=[scol])
+            styler = styler.map(color_support_strength, subset=[scol])
     if "EV / Unit" in df.columns:
-        styler = styler.applymap(color_ev, subset=["EV / Unit"])
+        styler = styler.map(color_ev, subset=["EV / Unit"])
     if "EV / Lot" in df.columns:
-        styler = styler.applymap(color_ev, subset=["EV / Lot"])
+        styler = styler.map(color_ev, subset=["EV / Lot"])
     if "POP (%)" in df.columns:
-        styler = styler.applymap(color_pop, subset=["POP (%)"])
+        styler = styler.map(color_pop, subset=["POP (%)"])
     if "ROI (%)" in df.columns:
-        styler = styler.applymap(color_roi, subset=["ROI (%)"])
+        styler = styler.map(color_roi, subset=["ROI (%)"])
     if "Safety Margin (%)" in df.columns:
-        styler = styler.applymap(color_safety, subset=["Safety Margin (%)"])
+        styler = styler.map(color_safety, subset=["Safety Margin (%)"])
     if "Bid-Ask Spread (%)" in df.columns:
-        styler = styler.applymap(color_bid_ask, subset=["Bid-Ask Spread (%)"])
+        styler = styler.map(color_bid_ask, subset=["Bid-Ask Spread (%)"])
     if "EV/Capital (%)" in df.columns:
-        styler = styler.applymap(color_ev, subset=["EV/Capital (%)"])
+        styler = styler.map(color_ev, subset=["EV/Capital (%)"])
     if "Annualized EV (%)" in df.columns:
-        styler = styler.applymap(color_roi, subset=["Annualized EV (%)"])
+        styler = styler.map(color_roi, subset=["Annualized EV (%)"])
 
     styler = styler.format({
         "Spot Price": "₹{:,.2f}",
