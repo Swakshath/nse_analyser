@@ -360,60 +360,88 @@ class NSEDataFetcher:
 
         Returns: total margin in ₹, or None if fetch fails
         """
+        max_retries = 3
+
+        # Derive Zerodha scrip format: SYMBOL + YY + MMM (e.g. INOXWIND26APR)
         try:
-            # Derive Zerodha scrip format: SYMBOL + YY + MMM (e.g. INOXWIND26APR)
             expiry_dt = datetime.strptime(expiry_date, "%d-%b-%Y")
-            yy = expiry_dt.strftime("%y")            # "26"
-            mmm = expiry_dt.strftime("%b").upper()    # "APR"
-            scrip = f"{symbol}{yy}{mmm}"
+        except ValueError as e:
+            logger.debug(f"Zerodha margin: bad expiry date for {symbol}: {e}")
+            return None
 
-            # URL-encode the form data for two legs
-            # Leg 1: sell put at short_strike
-            # Leg 2: buy put at long_strike
-            form_data = (
-                f"action=calculate"
-                f"&exchange%5B%5D=NFO&product%5B%5D=OPT&scrip%5B%5D={scrip}"
-                f"&option_type%5B%5D=PE&strike_price%5B%5D={short_strike:g}"
-                f"&qty%5B%5D={lot_size}&trade%5B%5D=sell"
-                f"&exchange%5B%5D=NFO&product%5B%5D=OPT&scrip%5B%5D={scrip}"
-                f"&option_type%5B%5D=PE&strike_price%5B%5D={long_strike:g}"
-                f"&qty%5B%5D={lot_size}&trade%5B%5D=buy"
-            )
+        yy = expiry_dt.strftime("%y")            # "26"
+        mmm = expiry_dt.strftime("%b").upper()    # "APR"
+        scrip = f"{symbol}{yy}{mmm}"
 
-            cmd = [
-                "curl", "-s", "https://zerodha.com/margin-calculator/SPAN",
-                "-H", "Accept: application/json, text/javascript, */*; q=0.01",
-                "-H", "Accept-Language: en-GB,en-US;q=0.9,en;q=0.8",
-                "-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8",
-                "-H", "Origin: https://zerodha.com",
-                "-H", "Referer: https://zerodha.com/margin-calculator/SPAN/",
-                "-H", "Sec-Fetch-Dest: empty",
-                "-H", "Sec-Fetch-Mode: cors",
-                "-H", "Sec-Fetch-Site: same-origin",
-                "-H", "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
-                "-H", "X-Requested-With: XMLHttpRequest",
-                "-H", 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
-                "-H", "sec-ch-ua-mobile: ?0",
-                "-H", 'sec-ch-ua-platform: "macOS"',
-                "--data-raw", form_data,
-            ]
-            # Add proxy if detected
-            if self.proxy:
-                cmd += ["--proxy", self.proxy]
+        # URL-encode the form data for two legs
+        # Leg 1: sell put at short_strike
+        # Leg 2: buy put at long_strike
+        form_data = (
+            f"action=calculate"
+            f"&exchange%5B%5D=NFO&product%5B%5D=OPT&scrip%5B%5D={scrip}"
+            f"&option_type%5B%5D=PE&strike_price%5B%5D={short_strike:g}"
+            f"&qty%5B%5D={lot_size}&trade%5B%5D=sell"
+            f"&exchange%5B%5D=NFO&product%5B%5D=OPT&scrip%5B%5D={scrip}"
+            f"&option_type%5B%5D=PE&strike_price%5B%5D={long_strike:g}"
+            f"&qty%5B%5D={lot_size}&trade%5B%5D=buy"
+        )
 
-            result = subprocess.run(cmd, timeout=15, capture_output=True, text=True)
+        cmd = [
+            "curl", "-s", "https://zerodha.com/margin-calculator/SPAN",
+            "-H", "Accept: application/json, text/javascript, */*; q=0.01",
+            "-H", "Accept-Language: en-GB,en-US;q=0.9,en;q=0.8",
+            "-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8",
+            "-H", "Origin: https://zerodha.com",
+            "-H", "Referer: https://zerodha.com/margin-calculator/SPAN/",
+            "-H", "Sec-Fetch-Dest: empty",
+            "-H", "Sec-Fetch-Mode: cors",
+            "-H", "Sec-Fetch-Site: same-origin",
+            "-H", "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+            "-H", "X-Requested-With: XMLHttpRequest",
+            "-H", 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+            "-H", "sec-ch-ua-mobile: ?0",
+            "-H", 'sec-ch-ua-platform: "macOS"',
+            "--data-raw", form_data,
+        ]
+        # Add proxy if detected
+        if self.proxy:
+            cmd += ["--proxy", self.proxy]
 
-            if result.returncode == 0 and result.stdout:
+        for attempt in range(max_retries):
+            try:
+                result = subprocess.run(cmd, timeout=15, capture_output=True, text=True)
+
+                if result.returncode != 0 or not result.stdout:
+                    logger.debug(f"Zerodha margin attempt {attempt + 1}/{max_retries} for {symbol}: empty response or non-zero exit")
+                    if attempt < max_retries - 1:
+                        time.sleep(0.5)
+                    continue
+
                 data = json.loads(result.stdout)
                 total_margin = data.get("total", {}).get("total", None)
                 if total_margin is not None and total_margin > 0:
                     return round(total_margin, 2)
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError, KeyError) as e:
-            logger.debug(f"Zerodha margin fetch failed for {symbol}: {e}")
-        except Exception as e:
-            logger.debug(f"Zerodha margin fetch unexpected error for {symbol}: {e}")
 
+                # Got a response but no valid margin — retry
+                logger.debug(f"Zerodha margin attempt {attempt + 1}/{max_retries} for {symbol}: response had no valid margin: {result.stdout[:200]}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+
+            except subprocess.TimeoutExpired:
+                logger.debug(f"Zerodha margin attempt {attempt + 1}/{max_retries} for {symbol}: timeout")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+            except json.JSONDecodeError as e:
+                logger.debug(f"Zerodha margin attempt {attempt + 1}/{max_retries} for {symbol}: bad JSON: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+            except Exception as e:
+                logger.debug(f"Zerodha margin attempt {attempt + 1}/{max_retries} for {symbol}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+
+        logger.debug(f"Zerodha margin: all {max_retries} attempts failed for {symbol}")
         return None
 
     # ------------------------------------------------------------------
