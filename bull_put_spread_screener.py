@@ -7,7 +7,7 @@ Scans NSE FnO stocks, calculates Bull Put Spread metrics for each,
 and ranks them by risk-adjusted return (ROI%, EV, POP).
 
 Data source: NSE India APIs (option chain, contract info, master quote)
-Authentication: Real NSE session cookies from cookies.txt
+Authentication: No cookies needed — NSE APIs respond without authentication
 
 This file is completely independent of nse_fetcher.py.
 """
@@ -179,22 +179,13 @@ SECTOR_MAP: Dict[str, str] = {
 
 class NSEDataFetcher:
     """
-    Fetches option-chain data from NSE India using session cookies.
+    Fetches option-chain data from NSE India APIs (no cookies needed).
     Completely independent copy — does not import nse_fetcher.py.
     """
 
-    def __init__(self, cookies_path: str = "cookies.txt"):
+    def __init__(self):
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         os.chdir(self.base_dir)
-
-        # Cookies are optional — NSE responds without them for some endpoints
-        self.cookies = ""
-        try:
-            with open(cookies_path, "r", encoding="utf-8") as f:
-                self.cookies = f.read().strip()
-                logger.info(f"Loaded cookies from {cookies_path}")
-        except FileNotFoundError:
-            logger.info("No cookies.txt found — proceeding without cookies")
 
         # Auto-detect corporate proxy from environment
         self.proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("https_proxy") or os.environ.get("http_proxy") or ""
@@ -223,9 +214,6 @@ class NSEDataFetcher:
         for attempt in range(max_retries):
             try:
                 cmd = ["curl", "-s", url] + self.headers
-                # Use -b flag for cookies (not -H 'cookie:') — required by NSE/Akamai
-                if self.cookies:
-                    cmd += ["-b", self.cookies]
                 cmd += ["-o", output_file]
                 # Add proxy if detected from environment
                 if self.proxy:

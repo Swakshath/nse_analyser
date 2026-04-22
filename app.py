@@ -393,7 +393,7 @@ if scan_button:
             st.session_state["strike_range"] = f"{strike_range[0]}%-{strike_range[1]}%"
             st.success(f"✅ Scan complete — {len(results)} valid spreads found for expiry {expiry_used} (DTE: {dte} days) | Strike range: {strike_range[0]}%-{strike_range[1]}% of spot (scanning ALL short+long combos)")
         else:
-            st.error("❌ No valid spreads found. Check your cookies or try different settings.")
+            st.error("❌ No valid spreads found. Market may be closed or try different settings.")
 
     except FileNotFoundError as e:
         progress_bar.empty()
@@ -822,9 +822,8 @@ else:
     st.markdown("""
     ### 👋 How to Use
 
-    1. **Place your NSE cookies** in `cookies.txt` in the project directory
-    2. **Adjust settings** in the sidebar (strike %, spread width, filters)
-    3. **Click "🚀 Run Scan"** to fetch live data from NSE and rank all FnO stocks
+    1. **Adjust settings** in the sidebar (strike %, spread width, filters)
+    2. **Click "🚀 Run Scan"** to fetch live data from NSE and rank all FnO stocks
 
     ### 📐 What Gets Calculated
 
